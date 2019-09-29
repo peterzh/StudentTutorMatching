@@ -1,3 +1,99 @@
+function transpose(a)
+{
+  return Object.keys(a[0]).map(function (c) { return a.map(function (r) { return r[c]; }); });
+}
+
+// Takes an Array that contains only Strings and Numbers and produces a column vector
+Object.defineProperty(Object.prototype, "toColumnVector", {value: function(){
+  if (this.constructor !== Array){
+    throw("typeError", "The object is not an array");
+  }
+  var output = [];
+  for (var i = 0; i < this.length; i++){
+    if (typeof this[i] !== "number" && typeof this[i] !== "string"){
+      throw("typeError", "The element is not a number or string");
+    } else {
+      output.push([this[i]]); 
+    }
+  }
+  return output;
+}});
+
+// Takes an Array that contains only Strings and Numbers and produces a row vector
+Object.defineProperty(Object.prototype, "toRowVector", {value: function(){
+  if (this.constructor !== Array){
+    throw("typeError", "The object is not an array");
+  }
+  for (var i = 0; i < this.length; i++){
+    if (typeof this[i] !== "number" && typeof this[i] !== "string"){
+      throw("typeError", "The element is not a number or string");
+    }
+  }
+  return [this];  
+}});
+
+function columnToRowVector(columnVector){
+  var rowVector = [];
+  rowVector.push([]);
+  for (var row = 0; row < columnVector.length; ++row){
+    rowVector[0].push(columnVector[row][0])
+  }
+  return rowVector;
+}
+
+function createInterviewSchedule(){
+  var doc = SpreadsheetApp.getActiveSpreadsheet();
+  
+  //get tutor names & student preferences
+  var tutors = doc.getSheetByName("Names (Tutors)").getDataRange().getValues();  
+  var scheduleSheet = doc.getSheetByName("Interview Schedule");
+  scheduleSheet.getRange('B2:O').clearContent();
+  scheduleSheet.getRange('B3:O').clearFormat();
+  scheduleSheet.getRange(2, 2, 1, tutors.length).setValues(transpose(tutors));
+  
+  
+  var sheet = doc.getSheetByName("START HERE");  
+  var studentResponseURL = sheet.getRange('J4').getValue();
+  studentPrefsSheet = SpreadsheetApp.openByUrl(studentResponseURL).getSheetByName('Form Responses 1');
+  studentPreferences = studentPrefsSheet.getDataRange().getValues();
+  var numResponses = studentPreferences.length - 1; 
+  
+  
+  //get preferences for ADS0
+  for (tut=0;tut<tutors.length;tut++) {
+    
+    
+    var prev_length = 0;
+    for (rank=0;rank<13;rank++) {
+      
+      if (prev_length<46) {
+        var NameList = [];
+        
+        for (resp=0;resp<numResponses;resp++) {
+          var studentName = studentPreferences[1+resp][2];
+          var tutorChoice = studentPreferences[1+resp][4+rank];
+          
+          if (tutorChoice==tutors[tut]) {
+            NameList.push(studentName);
+          }
+        }
+        
+        if (NameList.length>0) 
+        {
+          
+          range = scheduleSheet.getRange(3+prev_length, 2+tut, NameList.length);
+          range.setValues(NameList.toColumnVector());
+          prev_length += NameList.length;
+          range.setBackgroundRGB(255, 245 - 25*rank, 245 - 25*rank);
+        }
+        
+      }
+    }
+    
+  }
+  
+}
+
 function checkStudentPrefsForDuplicates() {
   var doc = SpreadsheetApp.getActiveSpreadsheet();
   
@@ -370,5 +466,3 @@ function computeAssignments() {
     doc.toast('Assignments computed');
   }
 }
-
-
