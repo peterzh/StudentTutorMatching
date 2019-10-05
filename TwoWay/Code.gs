@@ -42,56 +42,63 @@ function columnToRowVector(columnVector){
 }
 
 function createInterviewSchedule(){
-  var doc = SpreadsheetApp.getActiveSpreadsheet();
-  
-  //get tutor names & student preferences
-  var tutors = doc.getSheetByName("Names (Tutors)").getDataRange().getValues();  
-  var scheduleSheet = doc.getSheetByName("Interview Schedule");
-  scheduleSheet.getRange('B2:O').clearContent();
-  scheduleSheet.getRange('B3:O').clearFormat();
-  scheduleSheet.getRange(2, 2, 1, tutors.length).setValues(transpose(tutors));
   
   
-  var sheet = doc.getSheetByName("START HERE");  
-  var studentResponseURL = sheet.getRange('J4').getValue();
-  studentPrefsSheet = SpreadsheetApp.openByUrl(studentResponseURL).getSheetByName('Form Responses 1');
-  studentPreferences = studentPrefsSheet.getDataRange().getValues();
-  var numResponses = studentPreferences.length - 1; 
-  
-  
-  //get preferences for ADS0
-  for (tut=0;tut<tutors.length;tut++) {
+  var confirm = Browser.msgBox('Confirmation','Are you sure you want to create the schedule? This will overwrite the old schedule and will mean having to re-do the conflicts', Browser.Buttons.OK_CANCEL);
+  if(confirm=='ok'){ 
     
     
-    var prev_length = 0;
-    for (rank=0;rank<13;rank++) {
+    var doc = SpreadsheetApp.getActiveSpreadsheet();
+    
+    //get tutor names & student preferences
+    var tutors = doc.getSheetByName("Names (Tutors)").getDataRange().getValues();  
+    var scheduleSheet = doc.getSheetByName("Interview Schedule");
+    scheduleSheet.getRange('B2:O').clearContent();
+    scheduleSheet.getRange('B3:O').clearFormat();
+    scheduleSheet.getRange(2, 2, 1, tutors.length).setValues(transpose(tutors));
+    
+    
+    var sheet = doc.getSheetByName("START HERE");  
+    var studentResponseURL = sheet.getRange('J4').getValue();
+    studentPrefsSheet = SpreadsheetApp.openByUrl(studentResponseURL).getSheetByName('Form Responses 1');
+    studentPreferences = studentPrefsSheet.getDataRange().getValues();
+    var numResponses = studentPreferences.length - 1; 
+    
+    
+    //get preferences for ADS0
+    for (tut=0;tut<tutors.length;tut++) {
       
-      if (prev_length<46) {
-        var NameList = [];
+      
+      var prev_length = 0;
+      for (rank=0;rank<10;rank++) {
         
-        for (resp=0;resp<numResponses;resp++) {
-          var studentName = studentPreferences[1+resp][2];
-          var tutorChoice = studentPreferences[1+resp][4+rank];
+        if (prev_length<60){
+          var NameList = [];
           
-          if (tutorChoice==tutors[tut]) {
-            NameList.push(studentName);
+          for (resp=0;resp<numResponses;resp++) {
+            var studentName = studentPreferences[1+resp][2];
+            var studentYear = studentPreferences[1+resp][3];
+            var tutorChoice = studentPreferences[1+resp][4+rank];
+            
+            if (tutorChoice==tutors[tut]) {
+              NameList.push('('+ (studentYear.toString()=="One" ? 1 : 2) +') ' + studentName);
+            }
           }
-        }
-        
-        if (NameList.length>0) 
-        {
           
-          range = scheduleSheet.getRange(3+prev_length, 2+tut, NameList.length);
-          range.setValues(NameList.toColumnVector());
-          prev_length += NameList.length;
-          range.setBackgroundRGB(255, 245 - 25*rank, 245 - 25*rank);
+          if (NameList.length>0) 
+          {
+            
+            range = scheduleSheet.getRange(3+prev_length, 2+tut, NameList.length);
+            range.setValues(NameList.toColumnVector());
+            prev_length += NameList.length;
+            range.setBackgroundRGB(255, 245 - 20*rank, 245 - 20*rank);
+          }
+          
         }
-        
       }
+      
     }
-    
   }
-  
 }
 
 function checkStudentPrefsForDuplicates() {
@@ -192,15 +199,6 @@ function createStudentForm()
     .build();
     item.setValidation(gridValidation);
     
-    /*
-    //loop through and create dropdown for each rank
-    for (i = 1; i <= numTutors; i++) {
-    var item = form.addListItem().setTitle('Rank '+ i.toString())
-    .setChoiceValues(tutors)
-    .setRequired(true);
-    }
-    */
-    
     //place links in the main page
     var sheet = doc.getSheetByName("START HERE");  
     sheet.getRange('J2').setValue(form.getPublishedUrl()).setFontColor('green');
@@ -217,16 +215,28 @@ function createTutorForm()
 {
   var confirm = Browser.msgBox('Confirmation','Are you sure you want to create new forms? The old URLs will be overwritten!', Browser.Buttons.OK_CANCEL);
   if(confirm=='ok'){ 
-    
-    //get list of tutors and students
     var doc = SpreadsheetApp.getActiveSpreadsheet();
-    var sheet = doc.getSheetByName("Names (Students)");  
-    var students = sheet.getDataRange().getValues();
-    numStudents = students.length;
+    
+    //get student preferences
+    var sheet = doc.getSheetByName("START HERE");  
+    var studentResponseURL = sheet.getRange('J4').getValue();
+    studentPreferences = SpreadsheetApp.openByUrl(studentResponseURL).getSheetByName('Form Responses 1').getDataRange().getValues();
+    var numResponses = studentPreferences.length - 1;
     
     var sheet = doc.getSheetByName("Names (Tutors)");  
     var tutors = sheet.getDataRange().getValues();
     numTutors = tutors.length;
+    
+    //split student names by year group
+    var YearOneStudents = [];
+    var YearTwoStudents = [];
+    for (s=0;s<numResponses;s++) {
+      if (studentPreferences[1+s][3]=="One") { 
+        YearOneStudents.push(studentPreferences[1+s][2]);
+      } else { 
+        YearTwoStudents.push(studentPreferences[1+s][2]);
+      }  
+    }
     
     //Create form for tutors to choose top students
     var form = FormApp.create('Tutor Preferences')
@@ -236,27 +246,21 @@ function createTutorForm()
     name.setTitle('Name')
     .setChoiceValues(tutors).setRequired(true);
     
-    /*
-    //set capacity
-    var textItem = form.addTextItem().setTitle('Student capacity').setRequired(true);
-    var textValidation = FormApp.createTextValidation()
-    .setHelpText('Input was not a number between 1 and 300.')
-    .requireNumberBetween(1, 300)
-    .build();
-    textItem.setValidation(textValidation);
-    */
     
     form.addPageBreakItem();
     
     var item = form.addSectionHeaderItem();
-    item.setTitle('Please enter your preferences');
-    //loop through and create dropdown for 50 preferences
-    for (i = 1; i <= 100; i++) {
-      var item = form.addListItem().setTitle('Rank '+i.toString()).setChoiceValues(students);
-      
-      if ((i % 51) == 0) {
-        form.addPageBreakItem();
-      }
+    item.setTitle('Enter your preferences for YEAR ONE ');
+    for (i = 1; i <= 30; i++) {
+      var item = form.addListItem().setTitle('Y1 Rank '+i.toString()).setChoiceValues(YearOneStudents);
+    }
+    
+    form.addPageBreakItem();
+    
+    var item = form.addSectionHeaderItem();
+    item.setTitle('Enter your preferences for YEAR TWO ');
+    for (i = 1; i <= 30; i++) {
+      var item = form.addListItem().setTitle('Y2 Rank '+i.toString()).setChoiceValues(YearTwoStudents);
     }
     
     //place links in the main page
@@ -268,6 +272,8 @@ function createTutorForm()
     var responses_sheet = SpreadsheetApp.create("TutorPreferences_Responses");
     form.setDestination(FormApp.DestinationType.SPREADSHEET, responses_sheet.getId());
     sheet.getRange('J7').setValue(responses_sheet.getUrl()).setFontColor('green');
+    
+    
   };
 }
 
@@ -305,13 +311,19 @@ function toggleTutorForm()
   }
 }
 
+
 function getPreferences() {
   var doc = SpreadsheetApp.getActiveSpreadsheet();
   
-  var query_data = {};
-  query_data['student_prefs'] = {};
-  query_data['college_prefs'] = {};
-  query_data['college_capacity'] = {};
+  var year_one_data = {};
+  year_one_data['student_prefs'] = {};
+  year_one_data['college_prefs'] = {};
+  year_one_data['college_capacity'] = {};
+  
+  var year_two_data = {};
+  year_two_data['student_prefs'] = {};
+  year_two_data['college_prefs'] = {};
+  year_two_data['college_capacity'] = {};
   
   //get Tutor Names
   var sheet = doc.getSheetByName("Names (Tutors)");  
@@ -327,10 +339,18 @@ function getPreferences() {
   //Put student preferences into query_data
   for(var s=0; s<numResponses;s++) { //for each student
     var studentName = studentPreferences[1+s][2];
+    var studentYear = studentPreferences[1+s][3];
     
-    query_data['student_prefs'][studentName] = []
-    for(var t=0; t<numTutors; t++) { //from 1st to last place 
-      query_data['student_prefs'][studentName][t] = studentPreferences[1+s][4+t];
+    if (studentYear=="One") {
+      year_one_data['student_prefs'][studentName] = []
+      for(var t=0; t<numTutors; t++) { //from 1st to last place 
+        year_one_data['student_prefs'][studentName][t] = studentPreferences[1+s][4+t];
+      }
+    } else if (studentYear=="Two") {
+      year_two_data['student_prefs'][studentName] = []
+      for(var t=0; t<numTutors; t++) { //from 1st to last place 
+        year_two_data['student_prefs'][studentName][t] = studentPreferences[1+s][4+t];
+      }
     }
   }
   
@@ -340,29 +360,38 @@ function getPreferences() {
   tutorPreferences = SpreadsheetApp.openByUrl(tutorResponseURL).getSheetByName('Form Responses 1').getDataRange().getValues();
   var numResponses = tutorPreferences.length - 1;
   
-  var students = doc.getSheetByName("Names (Students)").getDataRange().getValues();  
-  numStudents = students.length;
-  var tutors = doc.getSheetByName("Names (Tutors)").getDataRange().getValues();  
-  numTutors = tutors.length;
+  var sheet = doc.getSheetByName("Assignments (List)");  
+  var YearOneCapacity = sheet.getRange('M2').getValue();
+  var YearTwoCapacity = sheet.getRange('M3').getValue();
   
   //Put tutor preferences into query_data
   for(var t=0; t<numResponses;t++) { //for each tutor
     var tutorName = tutorPreferences[1+t][2];
     
-    query_data['college_prefs'][tutorName] = []
-    //query_data['college_capacity'][tutorName] = tutorPreferences[1+t][3];
-    query_data['college_capacity'][tutorName] = Math.ceil(numStudents/numTutors)+2;
+    year_one_data['college_prefs'][tutorName] = []
+    year_one_data['college_capacity'][tutorName] = YearOneCapacity;
+    year_two_data['college_prefs'][tutorName] = []
+    year_two_data['college_capacity'][tutorName] = YearTwoCapacity;
     
-    for(var s=0; s<100; s++) { 
-      if (tutorPreferences[1+t][4+s] == "") {
+    for(var s=0; s<30; s++) { 
+      if (tutorPreferences[1+t][3+s] == "") {
         break;
       } //break if empty column
       
-      query_data['college_prefs'][tutorName][s] = tutorPreferences[1+t][3+s];
+      year_one_data['college_prefs'][tutorName][s] = tutorPreferences[1+t][3+s];
+    }
+    
+    for(var s=0; s<30; s++) { 
+      if (tutorPreferences[1+t][33+s] == "") {
+        break;
+      } //break if empty column
+      
+      year_two_data['college_prefs'][tutorName][s] = tutorPreferences[1+t][33+s];
     }
   }
-  Logger.log(query_data);
-  return query_data;
+  
+  return [year_one_data, year_two_data];
+  
 }
 
 function computeAssignments() {
@@ -371,6 +400,12 @@ function computeAssignments() {
     Browser.msgBox('Duplicate names in preferences','There are duplicate entries in the student and/or tutor preferences sheets (highlighted red). Please fix these and try again.', Browser.Buttons.OK);
     
   } else {
+    
+    //get Tutor Names
+    var doc = SpreadsheetApp.getActiveSpreadsheet();
+    var sheet = doc.getSheetByName("Names (Tutors)");  
+    var tutors = sheet.getDataRange().getValues();
+    numTutors = tutors.length;
     
     var url = 'https://api.matchingtools.org/hri/demo'
     var username = 'mannheim'
@@ -431,13 +466,52 @@ function computeAssignments() {
     ]
     };
     */
-    var query_data = getPreferences();
+    var data = getPreferences();
+    var year_one_data = data[0];
+    var year_two_data = data[1];
     
+    //year 1 assignments
     var options = {
       'method' : 'post',
       'contentType': 'application/json',
       'headers': {"Authorization": "Basic " + Utilities.base64Encode(username + ":" + password)},
-      'payload' : JSON.stringify(query_data)
+      'payload' : JSON.stringify(year_one_data)
+    };
+    var response = UrlFetchApp.fetch(url, options);
+    var json = response.getContentText(); // get the response content as text
+    var dataSet = JSON.parse(json); //parse text into json
+    dataSet = dataSet.hri_matching;
+    
+    //write data to Output sheet
+    var sheet = doc.getSheetByName("Assignments (List)");  
+    var range = sheet.getRange("A2:C300");
+    range.clearContent();
+    
+    var rows = [], data;
+    for (i = 0; i < dataSet.length; i++) {
+      data = dataSet[i];
+      var studentName = data['student.y'];
+      var tutorName = data['college.y'];
+      
+      //identify the rank of the assignment
+      for (t=0;t<numTutors;t++) {
+        
+        if (year_one_data['student_prefs'][studentName][t] == tutorName) {
+          var rank = t+1;
+        }
+      }
+      rows.push([studentName, tutorName, rank]);
+    }
+    dataRange = sheet.getRange(2, 1, rows.length, 3);
+    dataRange.setValues(rows);
+    dataRange.sort([{column: 1, ascending: true}]);
+    
+    //year 2 assignments
+    var options = {
+      'method' : 'post',
+      'contentType': 'application/json',
+      'headers': {"Authorization": "Basic " + Utilities.base64Encode(username + ":" + password)},
+      'payload' : JSON.stringify(year_two_data)
     };
     var response = UrlFetchApp.fetch(url, options);
     var json = response.getContentText(); // get the response content as text
@@ -447,22 +521,29 @@ function computeAssignments() {
     //write data to Output sheet
     var doc = SpreadsheetApp.getActiveSpreadsheet();
     var sheet = doc.getSheetByName("Assignments (List)");  
-    var range = sheet.getRange("A2:B300");
+    var range = sheet.getRange("E2:G300");
     range.clearContent();
     
-    
-    var rows = [],
-        data;
-    
+    var rows = [], data;
     for (i = 0; i < dataSet.length; i++) {
-      data = dataSet[i];    
-      rows.push([data['student.y'], data['college.y']]);
+      data = dataSet[i];
+      var studentName = data['student.y'];
+      var tutorName = data['college.y'];
+      
+      //identify the rank of the assignment
+      for (t=0;t<numTutors;t++) {
+        
+        if (year_two_data['student_prefs'][studentName][t] == tutorName) {
+          var rank = t+1;
+        }
+      }
+      rows.push([studentName, tutorName, rank]);
     }
-    
-    dataRange = sheet.getRange(2, 1, rows.length, 2);
+    dataRange = sheet.getRange(2, 5, rows.length, 3);
     dataRange.setValues(rows);
-    dataRange.sort([{column: 1, ascending: true}]);
+    dataRange.sort([{column: 5, ascending: true}]);
     
     doc.toast('Assignments computed');
   }
 }
+
